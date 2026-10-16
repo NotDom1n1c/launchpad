@@ -46,11 +46,9 @@ resource "github_repository" "template" {
   is_template = true
   topics      = concat(local.common_topics, each.value.topics)
 
-  has_issues           = false
-  has_wiki             = false
-  has_projects         = false
-  has_downloads        = false
-  vulnerability_alerts = true
+  has_issues   = false
+  has_wiki     = false
+  has_projects = false
 
   allow_merge_commit     = false
   delete_branch_on_merge = true
@@ -69,17 +67,26 @@ resource "github_repository" "platform" {
   visibility   = "public"
   topics       = concat(local.common_topics, ["k3d", "prometheus", "grafana", "loki", "opentofu", "internal-developer-platform"])
 
-  has_issues           = true
-  has_wiki             = false
-  has_projects         = false
-  has_downloads        = false
-  vulnerability_alerts = true
+  has_issues   = true
+  has_wiki     = false
+  has_projects = false
 
   allow_merge_commit     = false
   delete_branch_on_merge = true
 
-  # The interactive portal demo is deployed by .github/workflows/pages.yml
-  pages {
-    build_type = "workflow"
+  # Pages is managed by github_repository_pages below
+  lifecycle {
+    ignore_changes = [pages]
   }
+}
+
+# GitHub Pages hosts the interactive portal demo, deployed by .github/workflows/pages.yml
+import {
+  to = github_repository_pages.demo
+  id = "launchpad"
+}
+
+resource "github_repository_pages" "demo" {
+  repository = github_repository.platform.name
+  build_type = "workflow"
 }

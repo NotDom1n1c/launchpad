@@ -8,5 +8,5 @@ output "platform_repo" {
 }
 
 output "demo_url" {
-  value = github_repository.platform.pages[0].html_url
+  value = github_repository_pages.demo.html_url
 }
