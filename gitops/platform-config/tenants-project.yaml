@@ -1,0 +1,36 @@
+# Guard rails for every app created through the portal:
+# - only repos from NotDom1n1c may be deployed
+# - tenants can never touch platform namespaces
+# - tenants may only create the normal app building blocks (no RBAC, no cluster-wide objects)
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: tenants
+  namespace: argocd
+spec:
+  description: Apps created through the LAUNCHPAD portal
+  sourceRepos:
+    - https://github.com/NotDom1n1c/*
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+    - server: https://kubernetes.default.svc
+      namespace: "!kube-system"
+    - server: https://kubernetes.default.svc
+      namespace: "!kube-public"
+    - server: https://kubernetes.default.svc
+      namespace: "!argocd"
+    - server: https://kubernetes.default.svc
+      namespace: "!monitoring"
+    - server: https://kubernetes.default.svc
+      namespace: "!launchpad"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - { group: "", kind: Service }
+    - { group: "", kind: ConfigMap }
+    - { group: apps, kind: Deployment }
+    - { group: networking.k8s.io, kind: Ingress }
+    - { group: monitoring.coreos.com, kind: ServiceMonitor }
+    - { group: autoscaling, kind: HorizontalPodAutoscaler }

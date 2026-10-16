@@ -1,0 +1,50 @@
+# Alerts for tenant apps. Alertmanager routes them to Discord.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: launchpad-apps
+  namespace: monitoring
+spec:
+  groups:
+    - name: launchpad.apps
+      rules:
+        - alert: LaunchpadAppDown
+          expr: |
+            kube_deployment_status_replicas_available{namespace!~"kube-.*|argocd|monitoring|launchpad"} == 0
+              and kube_deployment_spec_replicas{namespace!~"kube-.*|argocd|monitoring|launchpad"} > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }} is down"
+            description: "Deployment {{ $labels.deployment }} in {{ $labels.namespace }} has no available pods for over a minute."
+
+        - alert: LaunchpadAppCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace!~"kube-.*|argocd|monitoring|launchpad"}[10m]) > 3
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }} keeps restarting"
+            description: "Container {{ $labels.container }} in pod {{ $labels.pod }} restarted more than 3 times in 10 minutes."
+
+        - alert: LaunchpadHighErrorRate
+          expr: |
+            sum by (service) (rate(traefik_service_requests_total{code=~"5.."}[5m]))
+              / sum by (service) (rate(traefik_service_requests_total[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High 5xx rate on {{ $labels.service }}"
+            description: "More than 5 % of requests to {{ $labels.service }} fail with a server error."
+
+        - alert: LaunchpadSyncFailed
+          expr: |
+            argocd_app_info{sync_status="OutOfSync"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.name }} is out of sync with Git"
+            description: "Argo CD could not bring {{ $labels.name }} in line with Git for 15 minutes."

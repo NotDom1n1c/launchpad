@@ -1,0 +1,124 @@
+# Prometheus + Alertmanager + Grafana (+ node-exporter, kube-state-metrics)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.10.1
+    helm:
+      releaseName: kps
+      valuesObject:
+        fullnameOverride: kps
+        # k3s does not expose these control-plane parts, so don't scrape or alert on them
+        kubeEtcd: { enabled: false }
+        kubeControllerManager: { enabled: false }
+        kubeScheduler: { enabled: false }
+        kubeProxy: { enabled: false }
+        defaultRules:
+          rules:
+            etcd: false
+            kubeControllerManager: false
+            kubeSchedulerAlerting: false
+            kubeSchedulerRecording: false
+            kubeProxy: false
+        prometheus:
+          prometheusSpec:
+            retention: 2d
+            scrapeInterval: 30s
+            # pick up every ServiceMonitor / PodMonitor / rule in the cluster, not only ours
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            resources:
+              requests: { cpu: 100m, memory: 384Mi }
+              limits: { memory: 1Gi }
+        alertmanager:
+          alertmanagerSpec:
+            # created by scripts/up.sh (real Discord webhook if DISCORD_WEBHOOK is set)
+            secrets: [alertmanager-discord]
+            resources:
+              requests: { cpu: 10m, memory: 32Mi }
+              limits: { memory: 96Mi }
+          config:
+            route:
+              receiver: discord
+              group_by: [alertname, namespace]
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 4h
+              routes:
+                # Watchdog fires all the time by design (proves the pipeline works). Keep it out of Discord.
+                - matchers: ['alertname = "Watchdog"']
+                  receiver: "null"
+                - matchers: ['alertname = "InfoInhibitor"']
+                  receiver: "null"
+            receivers:
+              - name: "null"
+              - name: discord
+                discord_configs:
+                  - webhook_url_file: /etc/alertmanager/secrets/alertmanager-discord/url
+                    send_resolved: true
+            inhibit_rules: []
+        grafana:
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            hosts: [grafana.localhost]
+          # Admin password comes from a secret made by scripts/up.sh, never from Git
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          grafana.ini:
+            auth.anonymous:
+              enabled: true
+              org_role: Viewer
+            dashboards:
+              default_home_dashboard_path: /tmp/dashboards/launchpad-apps.json
+          sidecar:
+            dashboards:
+              searchNamespace: ALL
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              uid: loki
+              url: http://loki.monitoring.svc:3100
+              access: proxy
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+        kube-state-metrics:
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 128Mi }
+        prometheus-node-exporter:
+          resources:
+            requests: { cpu: 10m, memory: 24Mi }
+            limits: { memory: 64Mi }
+        prometheusOperator:
+          resources:
+            requests: { cpu: 20m, memory: 48Mi }
+            limits: { memory: 192Mi }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # the operator CRDs are too large for client-side apply
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 3m }

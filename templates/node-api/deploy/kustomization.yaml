@@ -1,0 +1,15 @@
+# Argo CD deploys this folder. CI only ever changes newTag below.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - servicemonitor.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: launchpad
+images:
+  - name: app-image
+    newName: ghcr.io/__OWNER__/__APP__
+    newTag: latest

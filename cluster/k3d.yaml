@@ -1,0 +1,21 @@
+# LAUNCHPAD cluster, declared as code.
+# `k3d cluster create --config cluster/k3d.yaml` builds the whole thing from nothing.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: launchpad
+servers: 1
+agents: 1
+image: rancher/k3s:v1.36.5-k3s1
+ports:
+  # Traefik (the built-in ingress) answers on http://<app>.localhost
+  - port: 80:80
+    nodeFilters:
+      - loadbalancer
+options:
+  k3d:
+    wait: true
+    timeout: "180s"
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true

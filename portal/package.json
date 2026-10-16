@@ -1,0 +1,13 @@
+{
+  "name": "launchpad-portal",
+  "version": "1.0.0",
+  "description": "Self-service portal for the LAUNCHPAD platform",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "demo": "LAUNCHPAD_DEMO=1 PORT=4300 node src/server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=24" }
+}

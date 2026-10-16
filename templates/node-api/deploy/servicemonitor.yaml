@@ -1,0 +1,13 @@
+# Prometheus scrapes /metrics of this app every 15 s
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: __APP__
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: __APP__
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

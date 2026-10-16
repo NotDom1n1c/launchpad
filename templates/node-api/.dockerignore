@@ -1,0 +1,7 @@
+.git
+.github
+deploy
+test
+Dockerfile
+.dockerignore
+README.md

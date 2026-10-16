@@ -1,0 +1,32 @@
+# Registered on the LAUNCHPAD platform. Argo CD deploys whatever ember/deploy says.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ember
+  namespace: argocd
+  labels:
+    launchpad.dev/tenant: "true"
+    launchpad.dev/template: static-site
+  annotations:
+    launchpad.dev/repo: https://github.com/NotDom1n1c/ember
+    launchpad.dev/description: "Browser image editor built on Canvas"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: tenants
+  source:
+    repoURL: https://github.com/NotDom1n1c/ember.git
+    targetRevision: main
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ember
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 3m }

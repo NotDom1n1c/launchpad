@@ -1,0 +1,12 @@
+{
+  "name": "__APP__",
+  "version": "1.0.0",
+  "description": "__DESCRIPTION__",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=24" }
+}

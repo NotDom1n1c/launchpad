@@ -1,0 +1,30 @@
+# Least privilege: the portal may read Argo CD Applications and nudge them to refresh.
+# It cannot create, delete or change anything else. New apps arrive via Git, not via this account.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portal
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: launchpad-portal
+  namespace: argocd
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    verbs: [get, list, watch, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: launchpad-portal
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: launchpad-portal
+subjects:
+  - kind: ServiceAccount
+    name: portal
+    namespace: launchpad

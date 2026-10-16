@@ -1,0 +1,32 @@
+# Registered on the LAUNCHPAD platform. Argo CD deploys whatever gambit/deploy says.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gambit
+  namespace: argocd
+  labels:
+    launchpad.dev/tenant: "true"
+    launchpad.dev/template: static-site
+  annotations:
+    launchpad.dev/repo: https://github.com/NotDom1n1c/gambit
+    launchpad.dev/description: "Chess platform with its own engine, bots and puzzles"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: tenants
+  source:
+    repoURL: https://github.com/NotDom1n1c/gambit.git
+    targetRevision: main
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gambit
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 3m }

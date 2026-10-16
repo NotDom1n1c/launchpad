@@ -1,0 +1,8 @@
+      - name: 23 tax regression tests (headless Chrome)
+        run: |
+          python3 -m http.server 8000 >/dev/null 2>&1 &
+          sleep 2
+          google-chrome --headless=new --no-sandbox --disable-gpu --virtual-time-budget=15000 \
+            --dump-dom http://localhost:8000/tests/tests.html > result.html
+          grep -o '<div id="summary"[^<]*' result.html | tee -a "$GITHUB_STEP_SUMMARY"
+          grep -q 'id="summary" class="all-pass"' result.html

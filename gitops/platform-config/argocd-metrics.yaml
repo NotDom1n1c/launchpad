@@ -1,0 +1,13 @@
+# Scrape Argo CD itself, so Prometheus knows which apps are synced and healthy
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: argocd-application-controller
+  namespace: argocd
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-application-controller
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s

@@ -1,0 +1,97 @@
+# LAUNCHPAD delivery pipeline
+#   test -> build image -> smoke-test the container -> Trivy scan -> push to GHCR -> bump deploy/ (Argo CD deploys it)
+name: launchpad
+
+on:
+  push:
+    branches: [main]
+    # the deploy commit made by this workflow must not start the workflow again
+    paths-ignore: ["deploy/**", "**/*.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: launchpad-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TRIVY_VERSION: "0.76.0"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the site
+        shell: python
+        run: |
+          # every local file that an HTML page links to (src= / href=) must exist
+          import glob, os, re, sys
+          missing = []
+          for page in glob.glob("**/*.html", recursive=True):
+              html = open(page, encoding="utf8", errors="replace").read()
+              for ref in re.findall(r'(?:src|href)="([^"]+)"', html):
+                  if re.match(r"^([a-z]+:|//|#|\$|\{)", ref, re.I):
+                      continue  # external URLs, anchors, template placeholders
+                  path = ref.split("#")[0].split("?")[0]
+                  if not path:
+                      continue
+                  target = path.lstrip("/") if path.startswith("/") else os.path.join(os.path.dirname(page), path)
+                  if not os.path.exists(target):
+                      missing.append(f"{page}: {ref}")
+          print("\n".join(missing) or "all local links resolve")
+          sys.exit(1 if missing else 0)
+
+  deliver:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # commit the new image tag into deploy/
+      packages: write   # push the image to ghcr.io
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Image name and tag
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+          echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: |
+          docker build             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY"             --label "org.opencontainers.image.revision=$GITHUB_SHA"             -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+
+      - name: Smoke test the container
+        run: |
+          docker run -d --name app -p 8080:8080 "$IMAGE:$TAG"
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:8080/ && break; sleep 1; done
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/)
+          echo "GET / -> $code"; docker logs app | tail -n 5
+          test "$code" = "200"
+
+      - name: Security scan (Trivy)
+        run: |
+          trivy() { docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$HOME/.cache/trivy:/root/.cache/trivy" "aquasec/trivy:$TRIVY_VERSION" "$@"; }
+          trivy image --no-progress --ignore-unfixed --severity HIGH,CRITICAL "$IMAGE:$TAG" | tee trivy.txt
+          { echo "### Trivy scan of $IMAGE:$TAG"; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # block the release on fixable CRITICAL findings
+          trivy image --quiet --skip-db-update --ignore-unfixed --severity CRITICAL --exit-code 1 "$IMAGE:$TAG"
+
+      - name: Push to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+
+      - name: Deploy (GitOps)
+        run: |
+          sed -i "s/newTag: .*/newTag: $TAG/" deploy/kustomization.yaml
+          git config user.name "launchpad-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then echo "deploy/ already points at $TAG"; exit 0; fi
+          git commit -am "deploy: $TAG [skip ci]"
+          for i in 1 2 3; do git pull --rebase && git push && break; sleep 5; done
+          echo "### Deployed $TAG - Argo CD rolls it out within a minute" >> "$GITHUB_STEP_SUMMARY"

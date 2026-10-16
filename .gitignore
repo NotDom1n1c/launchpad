@@ -1,0 +1,8 @@
+# local state: credentials, kubeconfig bits, registry auth
+.launchpad/
+# OpenTofu state holds repo metadata; keep it local
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.*
+node_modules/
+*.log

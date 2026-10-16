@@ -1,0 +1,19 @@
+      - name: Check the site
+        shell: python
+        run: |
+          # every local file that an HTML page links to (src= / href=) must exist
+          import glob, os, re, sys
+          missing = []
+          for page in glob.glob("**/*.html", recursive=True):
+              html = open(page, encoding="utf8", errors="replace").read()
+              for ref in re.findall(r'(?:src|href)="([^"]+)"', html):
+                  if re.match(r"^([a-z]+:|//|#|\$|\{)", ref, re.I):
+                      continue  # external URLs, anchors, template placeholders
+                  path = ref.split("#")[0].split("?")[0]
+                  if not path:
+                      continue
+                  target = path.lstrip("/") if path.startswith("/") else os.path.join(os.path.dirname(page), path)
+                  if not os.path.exists(target):
+                      missing.append(f"{page}: {ref}")
+          print("\n".join(missing) or "all local links resolve")
+          sys.exit(1 if missing else 0)

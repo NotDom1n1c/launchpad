@@ -1,0 +1,60 @@
+# Argo CD, installed once by scripts/up.sh. After that, everything else comes from Git.
+global:
+  domain: argocd.localhost
+
+configs:
+  params:
+    # TLS ends at Traefik on a local cluster, so the server itself talks plain HTTP
+    server.insecure: true
+  cm:
+    url: http://argocd.localhost
+    # Poll Git every 60 s instead of the default 3 min
+    timeout.reconciliation: 60s
+    # Read-only view without login, so the portal can deep-link into Argo CD
+    users.anonymous.enabled: "true"
+    # Let app-of-apps parents see the health of their child Applications,
+    # so sync waves really wait (monitoring CRDs before the things that use them)
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then hs.message = obj.status.health.message end
+      end
+      return hs
+  rbac:
+    policy.default: role:readonly
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+  resources:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { memory: 256Mi }
+
+controller:
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 768Mi }
+
+repoServer:
+  resources:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { memory: 384Mi }
+
+redis:
+  resources:
+    requests: { cpu: 20m, memory: 32Mi }
+    limits: { memory: 96Mi }
+
+applicationSet:
+  resources:
+    requests: { cpu: 20m, memory: 48Mi }
+    limits: { memory: 128Mi }
+
+dex:
+  enabled: false
+notifications:
+  enabled: false

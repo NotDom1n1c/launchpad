@@ -1,0 +1,31 @@
+# Tune the Traefik ingress that ships with k3s:
+# per-service request metrics for Prometheus and access logs for Loki
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    metrics:
+      prometheus:
+        entryPoint: metrics
+        addServicesLabels: true
+        addRoutersLabels: true
+    logs:
+      access:
+        enabled: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
