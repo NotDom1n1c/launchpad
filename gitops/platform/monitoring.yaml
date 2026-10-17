@@ -79,6 +79,10 @@ spec:
             userKey: admin-user
             passwordKey: admin-password
           grafana.ini:
+            # Grafana 13 installs and starts extra app plugins (Drilldown, Pyroscope, ...)
+            # on its own; on a laptop cluster they burned 5 CPU cores. Not needed here.
+            plugins:
+              preinstall_disabled: true
             auth.anonymous:
               enabled: true
               org_role: Viewer
@@ -95,7 +99,7 @@ spec:
               access: proxy
           resources:
             requests: { cpu: 50m, memory: 128Mi }
-            limits: { memory: 384Mi }
+            limits: { cpu: "1", memory: 512Mi }
         kube-state-metrics:
           resources:
             requests: { cpu: 10m, memory: 32Mi }
