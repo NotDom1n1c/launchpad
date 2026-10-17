@@ -34,6 +34,16 @@ function In-Wsl([string]$Script) {
   if ($LASTEXITCODE -ne 0) { throw "failed: $Script" }
 }
 
+# WSL stops a distro a few seconds after its last wsl.exe session ends, even with Docker
+# running inside. A hidden "sleep infinity" session keeps the cluster alive until 'stop'.
+function Start-KeepAlive {
+  $running = Get-CimInstance Win32_Process -Filter "Name='wsl.exe'" |
+    Where-Object { $_.CommandLine -like "*-d $Distro*launchpad-keepalive*" }
+  if (-not $running) {
+    Start-Process wsl.exe -ArgumentList "-d $Distro -u root -- bash -c 'exec -a launchpad-keepalive sleep infinity'" -WindowStyle Hidden
+  }
+}
+
 function Test-Distro {
   $list = (wsl.exe -l -q) -replace "`0", '' | ForEach-Object { $_.Trim() }
   return $list -contains $Distro
@@ -53,14 +63,16 @@ switch ($Command) {
     # The portal creates repos with your GitHub CLI login. The token goes into a cluster secret, never into Git.
     $env:GITHUB_TOKEN = (gh auth token 2>$null)
     $env:WSLENV = 'GITHUB_TOKEN/u:GHCR_TOKEN/u:DISCORD_WEBHOOK/u'
+    Start-KeepAlive
     In-Wsl 'bash scripts/up.sh'
   }
   'stop' {
     In-Wsl 'k3d cluster stop launchpad'
-    wsl.exe --shutdown
+    wsl.exe --shutdown   # also ends the keep-alive session
     Write-Host 'Stopped. WSL is shut down, RAM is free again.' -ForegroundColor Green
   }
   'start' {
+    Start-KeepAlive
     In-Wsl 'systemctl start docker 2>/dev/null || service docker start; k3d cluster start launchpad && kubectl config use-context k3d-launchpad >/dev/null'
     Write-Host 'Started. Apps are back in about a minute: http://launchpad.localhost' -ForegroundColor Green
   }

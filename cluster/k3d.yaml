@@ -5,7 +5,10 @@ kind: Simple
 metadata:
   name: launchpad
 servers: 1
-agents: 1
+# Single node on purpose: after a Docker restart, k3d agents can come back with a
+# different IP than they registered with ("failed to find interface with specified
+# node ip") and crash-loop. One node avoids that and saves about 300 MB of RAM.
+agents: 0
 image: rancher/k3s:v1.36.5-k3s1
 ports:
   # Traefik (the built-in ingress) answers on http://<app>.localhost

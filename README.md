@@ -79,7 +79,7 @@ flowchart LR
 
 | Layer | Tool | Where |
 |---|---|---|
-| Cluster as code | k3d (k3s 1.36), 1 server + 1 agent | [`cluster/k3d.yaml`](cluster/k3d.yaml) |
+| Cluster as code | k3d (k3s 1.36), single node | [`cluster/k3d.yaml`](cluster/k3d.yaml) |
 | GitHub as code | OpenTofu + GitHub provider | [`infra/github/`](infra/github) |
 | GitOps | Argo CD 3.5, app-of-apps, auto-sync, self-heal, prune | [`bootstrap/`](bootstrap), [`gitops/`](gitops) |
 | Guard rails | `tenants` AppProject: own repos only, no platform namespaces, no RBAC objects | [`gitops/platform-config/tenants-project.yaml`](gitops/platform-config/tenants-project.yaml) |
