@@ -27,6 +27,9 @@ $Repo = $PSScriptRoot
 $WslRepo = '/mnt/' + $Repo.Substring(0, 1).ToLower() + ($Repo.Substring(2) -replace '\\', '/')
 
 function In-Wsl([string]$Script) {
+  # Windows PowerShell 5.1 turns any stderr line of a native tool into a terminating error
+  # under 'Stop', so judge wsl.exe only by its exit code
+  $ErrorActionPreference = 'Continue'
   wsl.exe -d $Distro -u root --cd "$WslRepo" -- bash -lc $Script
   if ($LASTEXITCODE -ne 0) { throw "failed: $Script" }
 }

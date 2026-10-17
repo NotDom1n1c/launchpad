@@ -57,6 +57,13 @@ export function createKube({ apiUrl = process.env.KUBE_API_URL } = {}) {
     async getApplication(name) {
       return call("GET", `${APPS}/${name}`);
     },
+    // namespace -> image of the first container, for every Deployment on the platform
+    async deploymentImages() {
+      const list = await call("GET", "/apis/apps/v1/deployments?labelSelector=app.kubernetes.io%2Fpart-of%3Dlaunchpad");
+      const out = {};
+      for (const d of list?.items || []) out[d.metadata.namespace] = d.spec.template.spec.containers[0].image;
+      return out;
+    },
     // Ask Argo CD to look at Git now instead of waiting for the next poll
     async refresh(name, type = "normal") {
       return call("PATCH", `${APPS}/${name}`, { metadata: { annotations: { "argocd.argoproj.io/refresh": type } } }, "application/merge-patch+json");

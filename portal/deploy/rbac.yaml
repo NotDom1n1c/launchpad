@@ -1,4 +1,4 @@
-# Least privilege: the portal may read Argo CD Applications and nudge them to refresh.
+# Least privilege: the portal may read Argo CD Applications (and nudge them to refresh) and read Deployments.
 # It cannot create, delete or change anything else. New apps arrive via Git, not via this account.
 apiVersion: v1
 kind: ServiceAccount
@@ -24,6 +24,29 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: launchpad-portal
+subjects:
+  - kind: ServiceAccount
+    name: portal
+    namespace: launchpad
+---
+# Read-only: which image each platform Deployment really runs (Argo CD 3.x no longer reports it)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: launchpad-portal-read-deployments
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: launchpad-portal-read-deployments
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: launchpad-portal-read-deployments
 subjects:
   - kind: ServiceAccount
     name: portal

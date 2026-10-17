@@ -133,7 +133,7 @@ Alerts go to Discord if you set `$env:DISCORD_WEBHOOK` before `up`. On Linux or 
 - **Git is the only way in.** The portal never deploys anything itself. It writes to Git, and Argo CD applies it. So every change is reviewable and revertible, and `git revert` is the rollback.
 - **The pipeline commits the image tag.** CI writes `sha-<commit>` into `deploy/kustomization.yaml`. You can always see which commit runs where, and nothing uses `:latest` in production.
 - **One template, one golden path.** Every app gets the same Dockerfile shape, probes, resource limits, non-root user, read-only root filesystem, dropped capabilities and seccomp profile. Teams get a secure default without thinking about it.
-- **Least privilege for the portal.** Its ServiceAccount can only read Argo CD Applications and annotate them to refresh. It cannot create workloads. The GitHub token lives in a Kubernetes secret, never in Git.
+- **Least privilege for the portal.** Its ServiceAccount can only read Argo CD Applications and Deployments and annotate Applications to refresh. It cannot create or change workloads. The GitHub token lives in a Kubernetes secret, never in Git.
 - **Tenants are fenced in.** The `tenants` AppProject only accepts repos from this account, blocks `kube-system`, `argocd`, `monitoring` and `launchpad`, and only allows Deployments, Services, Ingresses, ConfigMaps, ServiceMonitors and HPAs.
 - **Supply chain.** Third-party GitHub Actions are pinned to commit SHAs. Images are scanned with Trivy, and fixable CRITICAL findings block the release.
 - **Tested like a product.** The `e2e` workflow builds the complete platform on a fresh runner, runs the smoke tests and a self-healing test, and repeats that every Monday.

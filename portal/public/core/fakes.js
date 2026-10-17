@@ -10,15 +10,17 @@ function sha(seed) {
 }
 
 function app({ name, tenant, template, description, owner, health = "Healthy", sync = "Synced", tag, at }) {
+  const image = tenant && tag ? `ghcr.io/${owner.toLowerCase()}/${name}:${tag}` : "";
   const labels = tenant ? { "launchpad.dev/tenant": "true", "launchpad.dev/template": template } : {};
   const annotations = tenant ? { "launchpad.dev/repo": `https://github.com/${owner}/${name}`, "launchpad.dev/description": description } : {};
   return {
     metadata: { name, labels, annotations, creationTimestamp: new Date(at).toISOString() },
+    live: { image }, // stands in for the Deployment's container image
     status: {
       health: { status: health },
       sync: { status: sync, revision: sha(name + tag) },
       summary: tenant
-        ? { images: tag ? [`ghcr.io/${owner.toLowerCase()}/${name}:${tag}`] : [], externalURLs: [`http://${name}.localhost`] }
+        ? { externalURLs: [`http://${name}.localhost`] }
         : {},
       operationState: { finishedAt: new Date(at).toISOString() },
     },
@@ -111,6 +113,10 @@ export function createWorld({ owner = "NotDom1n1c", now = () => Date.now(), spee
     async getApplication(name) {
       if (registered.has(name)) apps.set(name, tenantState(name));
       return apps.get(name) || null;
+    },
+    async deploymentImages() {
+      await kube.listApplications();
+      return Object.fromEntries([...apps.values()].filter((a) => a.live.image).map((a) => [a.metadata.name, a.live.image]));
     },
     async refresh() { return true; },
   };

@@ -129,9 +129,19 @@ export function createPlatform({
   const jobs = new Map();
   let jobSeq = 0;
 
+  // Argo CD 3.x no longer lists images in status.summary, so read what really runs
+  function withImage(app, images) {
+    const image = app.image || images[app.name] || "";
+    return { ...app, image, tag: image.includes(":") ? image.split(":").pop() : "" };
+  }
+
+  async function liveImages() {
+    try { return (await kube.deploymentImages?.()) || {}; } catch { return {}; }
+  }
+
   async function listApps() {
-    const items = await kube.listApplications();
-    return items.map(summarizeApp);
+    const [items, images] = await Promise.all([kube.listApplications(), liveImages()]);
+    return items.map((a) => withImage(summarizeApp(a), images));
   }
 
   async function overview() {
@@ -259,7 +269,7 @@ export function createPlatform({
         await kube.refresh(name).catch(() => {});
         const app = await kube.getApplication(name).catch(() => null);
         if (!app) { progress("waiting for Argo CD to pick up the app"); return null; }
-        const s = summarizeApp(app);
+        const s = withImage(summarizeApp(app), await liveImages());
         progress(`${s.sync} / ${s.health}${s.tag ? ` (${s.tag})` : ""}`);
         return s.sync === "Synced" && s.health === "Healthy" && s.tag && s.tag !== "latest" ? s : null;
       }, "Argo CD to report the app healthy");
