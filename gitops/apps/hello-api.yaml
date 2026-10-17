@@ -1,0 +1,32 @@
+# Registered on the LAUNCHPAD platform. Argo CD deploys whatever hello-api/deploy says.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hello-api
+  namespace: argocd
+  labels:
+    launchpad.dev/tenant: "true"
+    launchpad.dev/template: node-api
+  annotations:
+    launchpad.dev/repo: https://github.com/NotDom1n1c/hello-api
+    launchpad.dev/description: "Demo JSON API created through the LAUNCHPAD portal"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: tenants
+  source:
+    repoURL: https://github.com/NotDom1n1c/hello-api.git
+    targetRevision: main
+    path: deploy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hello-api
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 3m }
