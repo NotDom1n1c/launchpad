@@ -13,10 +13,11 @@ while read -r name sync health; do
   if [ "$sync" = "Synced" ] && [ "$health" = "Healthy" ]; then ok "$name"; else bad "$name ($sync / $health)"; fi
 done < <(kubectl -n argocd get applications -o custom-columns='A:.metadata.name,S:.status.sync.status,H:.status.health.status' --no-headers)
 
-echo "Ingress: every host answers through Traefik"
-for host in steuerrechner gambit ember launchpad grafana argocd; do
-  code=$(http_code "$host.localhost")
-  case "$code" in 200|302) ok "$host.localhost -> $code" ;; *) bad "$host.localhost -> $code" ;; esac
+echo "Ingress: every host in the cluster answers through Traefik"
+for host in $(kubectl get ingress -A -o jsonpath='{range .items[*]}{.spec.rules[0].host}{"
+"}{end}' | sort -u); do
+  code=$(http_code "$host")
+  case "$code" in 200|302) ok "$host -> $code" ;; *) bad "$host -> $code" ;; esac
 done
 code=$(http_code launchpad.localhost /api/overview)
 [ "$code" = "200" ] && ok "portal API /api/overview -> 200" || bad "portal API /api/overview -> $code"

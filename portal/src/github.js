@@ -82,8 +82,9 @@ export function createGitHub({ token, owner, api = "https://api.github.com", fet
       return call("DELETE", `${repo(name)}/contents/${path}`, { message, sha: existing.sha });
     },
 
-    async latestRun(name) {
-      const data = await call("GET", `${repo(name)}/actions/runs?per_page=1`);
+    async latestRun(name, headSha) {
+      const filter = headSha ? `&head_sha=${headSha}` : "";
+      const data = await call("GET", `${repo(name)}/actions/runs?per_page=1${filter}`);
       const run = data?.workflow_runs?.[0];
       return run ? { status: run.status, conclusion: run.conclusion, url: run.html_url } : null;
     },

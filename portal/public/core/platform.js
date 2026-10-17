@@ -228,7 +228,8 @@ export function createPlatform({
             .replaceAll("__DESCRIPTION__", description),
         });
       }
-      await github.commitFiles(name, "main", changed, `Personalize ${name} for LAUNCHPAD`);
+      // the pipeline run of THIS commit is the one that delivers the app
+      job.commit = await github.commitFiles(name, "main", changed, `Personalize ${name} for LAUNCHPAD`);
       return `${changed.length} files updated in one commit`;
     });
 
@@ -242,7 +243,7 @@ export function createPlatform({
 
     await step(job, "build", async (progress) => {
       const runInfo = await waitFor(async () => {
-        const r = await github.latestRun(name);
+        const r = await github.latestRun(name, job.commit);
         if (r) {
           job.links.pipeline = r.url;
           progress(r.status === "completed" ? r.conclusion : r.status.replace("_", " "));

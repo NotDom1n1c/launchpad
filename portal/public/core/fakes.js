@@ -66,6 +66,7 @@ export function createWorld({ owner = "NotDom1n1c", now = () => Date.now(), spee
       const r = repos.get(name);
       for (const f of files) r.files.find((x) => x.path === f.path).content = f.content;
       r.runStartedAt = now(); // a push starts the pipeline
+      return sha(name + "personalize");
     },
     async putFile(_repo, path, content) {
       const name = path.split("/").pop().replace(/\.yaml$/, "");

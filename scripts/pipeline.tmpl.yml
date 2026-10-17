@@ -22,14 +22,25 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.guard.outputs.ready }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Personalized yet?
+        id: guard
+        run: |
+          # a fresh copy of a template still says __APP__ until the portal personalizes it
+          if grep -rqs "__APP__" deploy/; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"; echo "Template placeholders found, delivery is skipped."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
 __TEST__
 
   deliver:
     needs: test
     # template repositories only test themselves; their copies (the real apps) deliver
-    if: ${{ !github.event.repository.is_template }}
+    if: ${{ needs.test.outputs.ready == 'true' && !github.event.repository.is_template }}
     runs-on: ubuntu-latest
     permissions:
       contents: write   # commit the new image tag into deploy/
