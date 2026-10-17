@@ -229,6 +229,7 @@ export function createPlatform({
       const files = await github.readTextFiles(name, "main");
       const changed = [];
       for (const f of files) {
+        if (f.path.startsWith(".github/")) continue; // pipelines are generic; never rewrite them
         if (!/__APP__|__OWNER__|__DESCRIPTION__/.test(f.content)) continue;
         changed.push({
           path: f.path,

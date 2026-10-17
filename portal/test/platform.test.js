@@ -151,3 +151,21 @@ test("a push to a live app rolls out a new version, a failing one keeps the old"
   assert.equal(app.tag, `sha-${commit.slice(0, 7)}`, "the old version keeps running");
   assert.equal(app.health, "Healthy");
 });
+
+test("personalizing never rewrites the pipeline (its guard looks for the placeholder)", async () => {
+  const clock = fakeClock();
+  const workflow = 'if grep -rqs "__APP__" deploy/; then skip; fi';
+  const world = createWorld({
+    owner: "NotDom1n1c", now: clock.now,
+    templateFiles: async () => [
+      { path: "deploy/ingress.yaml", content: "host: __APP__.localhost" },
+      { path: ".github/workflows/launchpad.yml", content: workflow },
+    ],
+  });
+  const platform = createPlatform({ ...world, owner: "NotDom1n1c", pollMs: 500, ...clock });
+  const job = await platform.createApp({ name: "learn-code", template: "static-site" });
+  await finish(platform, job.id);
+  const files = await world.github.readTextFiles("learn-code");
+  assert.equal(files.find((f) => f.path === ".github/workflows/launchpad.yml").content, workflow);
+  assert.equal(files.find((f) => f.path === "deploy/ingress.yaml").content, "host: learn-code.localhost");
+});

@@ -48,7 +48,7 @@ export function templateLoader(base = "templates") {
 }
 
 function personalize(files, { name, owner, description }) {
-  return files.map((f) => ({
+  return files.map((f) => f.path.startsWith(".github/") ? { ...f } : ({
     path: f.path,
     content: f.content.replaceAll("__APP__", name).replaceAll("__OWNER__", owner.toLowerCase()).replaceAll("__DESCRIPTION__", description),
   }));

@@ -29,8 +29,9 @@ jobs:
       - name: Personalized yet?
         id: guard
         run: |
-          # a fresh copy of a template still says __APP__ until the portal personalizes it
-          if grep -rqs "__APP__" deploy/; then
+          # a fresh copy of a template still contains the app placeholder until the portal personalizes it.
+          # Written in two halves so that personalizing this file does not replace the pattern itself.
+          if grep -rqs "__""APP__" deploy/; then
             echo "ready=false" >> "$GITHUB_OUTPUT"; echo "Template placeholders found, delivery is skipped."
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
