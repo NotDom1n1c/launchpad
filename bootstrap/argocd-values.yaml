@@ -45,6 +45,9 @@ repoServer:
     limits: { memory: 384Mi }
 
 redis:
+  # ECR Public rate-limits shared CI runners (HTTP 429); Google's Docker Hub mirror does not
+  image:
+    repository: mirror.gcr.io/library/redis
   resources:
     requests: { cpu: 20m, memory: 32Mi }
     limits: { memory: 96Mi }

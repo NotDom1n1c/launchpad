@@ -58,8 +58,12 @@ echo "grafana-admin, alertmanager-discord, launchpad-github: ok"
 step "Argo CD (chart $ARGOCD_CHART_VERSION)"
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
 helm repo update argo >/dev/null
-helm upgrade --install argocd argo/argo-cd --version "$ARGOCD_CHART_VERSION" \
-  --namespace argocd -f bootstrap/argocd-values.yaml --wait --timeout 10m
+for attempt in 1 2 3; do
+  helm upgrade --install argocd argo/argo-cd --version "$ARGOCD_CHART_VERSION" \
+    --namespace argocd -f bootstrap/argocd-values.yaml --wait --timeout 6m && break
+  [ "$attempt" -eq 3 ] && { echo "Argo CD did not come up"; exit 1; }
+  echo "Argo CD not ready yet (attempt $attempt), retrying"
+done
 
 step "Handing over to GitOps (bootstrap/root.yaml)"
 kubectl apply -f bootstrap/root.yaml
