@@ -156,15 +156,13 @@ launchpad.ps1     Windows entry point
 
 ## Screenshots
 
-All taken from the real cluster on my laptop.
+**Portal** (from the playground, same UI as on the cluster): Fig. 1 is the cluster in three.js. Every app is a tower on the launch deck, its beacon shows GO / HOLD / SCRUB, and a new app rises out of the deck with each launch step (here `rocket-api`, with its launch beam).
 
-**Portal**: every app with health, sync state and the image that really runs
+![LAUNCHPAD portal with the 3D cluster](docs/screenshots/portal-new-app.png)
 
 ![LAUNCHPAD portal](docs/screenshots/portal-live.png)
 
-**New app**: name, template, description. The preview shows repo, image and URL before anything is created.
-
-![New app drawer](docs/screenshots/portal-new-app.png)
+Argo CD and Grafana below are from the real cluster on my laptop.
 
 **Argo CD**: the `platform` app-of-apps, synced to the latest commit
 
