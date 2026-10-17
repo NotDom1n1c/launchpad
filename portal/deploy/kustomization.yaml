@@ -13,4 +13,4 @@ labels:
 images:
   - name: portal-image
     newName: ghcr.io/notdom1n1c/launchpad-portal
-    newTag: sha-2a6185a
+    newTag: sha-9424797
