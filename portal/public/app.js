@@ -9,6 +9,11 @@ const BROWSER_DEMO = location.hostname.endsWith("github.io") || params.has("demo
 // Apps whose GitHub repos really exist; apps a visitor creates in the demo only exist in their browser
 const REAL_REPOS = new Set(["steuerrechner", "gambit", "ember", "hello-api"]);
 let playground = null; // demo only: lets visitors open, inspect and edit their apps
+let scene3d = null; // Fig. 1, the cluster in 3D
+
+// GO / HOLD / SCRUB on the sheets, with the real Argo CD state underneath
+const STAMP = { Healthy: ["GO", ""], Progressing: ["HOLD", "hold"], Degraded: ["SCRUB", "scrub"], Missing: ["SCRUB", "scrub"] };
+const lampOf = (h) => ({ Healthy: "go", Progressing: "hold", Degraded: "scrub", Missing: "scrub" })[h] || "";
 
 // ------------------------------------------------------------------ api
 async function makeApi() {
@@ -83,21 +88,21 @@ function renderOverview() {
 
   const c = $("#cluster");
   const live = cluster.connected;
-  c.innerHTML = `<i class="dot dot--${live ? "ok" : "bad"}"></i><span>${demo ? "demo · simulated cluster" : live ? "k3d-launchpad · live" : "cluster unreachable"}</span>`;
+  c.innerHTML = `<i class="lamp lamp--${live ? "go" : "scrub"}"></i><span>${demo ? "k3d-launchpad · simulated" : live ? "k3d-launchpad · live" : "cluster unreachable"}</span>`;
   c.title = cluster.message || "";
 
   $("#s-apps").textContent = stats.apps ?? "-";
   const healthy = $("#s-healthy");
   healthy.textContent = stats.apps ? `${stats.healthy}/${stats.apps}` : "-";
-  healthy.className = "stat__n " + (stats.apps && stats.healthy === stats.apps ? "is-ok" : "");
+  healthy.className = stats.apps && stats.healthy === stats.apps ? "is-ok" : "";
   $("#s-synced").textContent = stats.apps ? `${stats.synced}/${stats.apps}` : "-";
   const p = $("#s-platform");
-  p.textContent = !live ? "offline" : stats.platformHealthy ? "OK" : "busy";
-  p.className = "stat__n " + (!live ? "is-bad" : stats.platformHealthy ? "is-ok" : "");
+  p.textContent = !live ? "LOS" : stats.platformHealthy ? "GO" : "HOLD";
+  p.className = !live ? "is-bad" : stats.platformHealthy ? "is-ok" : "";
 
   $("#platform").innerHTML = state.platform
-    .map((a) => `<li title="${esc(a.sync)} / ${esc(a.health)}"><i class="dot dot--${esc(a.health)}"></i>${esc(a.name)}</li>`)
-    .join("") || `<li><i class="dot"></i>no data</li>`;
+    .map((a) => `<li title="${esc(a.sync)} / ${esc(a.health)}"><i class="lamp lamp--${lampOf(a.health)}"></i>${esc(a.name)}</li>`)
+    .join("") || `<li><i class="lamp"></i>no data</li>`;
 
   for (const k of ["argocd", "grafana", "github"]) if (links[k]) $(`#link-${k}`).href = links[k];
   $("#gitops-link").href = `https://github.com/${state.owner}/${state.gitopsRepo || "launchpad"}`;
@@ -109,34 +114,34 @@ function renderOverview() {
 }
 
 // ------------------------------------------------------------------ render: cards
-function appCard(a) {
+function appCard(a, n) {
   const links = state.links || {};
   const realRepo = !state.demo || REAL_REPOS.has(a.name);
   const grafana = state.demo ? links.grafana : `${links.grafana}/d/launchpad-apps/launchpad-apps?var-app=${encodeURIComponent(a.name)}`;
   const argo = state.demo ? links.argocd : `${links.argocd}/applications/argocd/${encodeURIComponent(a.name)}`;
   const tpl = templates.find((t) => t.id === a.template);
+  const [word, cls] = STAMP[a.health] || ["STANDBY", "hold"];
+  const row = (k, v, title = "") => `<div><dt>${k}</dt><span class="lead"></span><dd ${title ? `title="${esc(title)}"` : ""}>${v}</dd></div>`;
   return `
-  <article class="card" data-app="${esc(a.name)}">
-    <div class="card__top">
-      <i class="dot dot--${esc(a.health)}"></i>
-      <h3 class="card__name">${esc(a.name)}</h3>
-      <span class="pill pill--${esc(a.health)}">${esc(a.health)}</span>
-    </div>
-    <p class="card__desc">${esc(a.description)}</p>
-    <dl class="meta">
-      <dt>Image</dt><dd title="${esc(a.image)}">${esc(a.tag || "-")}</dd>
-      <dt>Sync</dt><dd class="sync--${esc(a.sync)}">${esc(a.sync)}${a.revision ? ` @ ${esc(a.revision)}` : ""}</dd>
-      <dt>Deployed</dt><dd>${esc(ago(a.deployedAt))}</dd>
-      <dt>Template</dt><dd>${esc(tpl ? tpl.name : a.template || "-")}</dd>
+  <article class="sheet" data-app="${esc(a.name)}">
+    <span class="sheet__no">PL-${String(n + 1).padStart(2, "0")} · ${esc(tpl ? tpl.name : a.template || "app")}</span>
+    <h3 class="sheet__name">${esc(a.name)}</h3>
+    <span class="stamp ${cls ? `stamp--${cls}` : ""}">${word}<small>${esc(a.health)}</small></span>
+    <p class="sheet__desc">${esc(a.description)}</p>
+    <dl class="spec">
+      ${row("Image", esc(a.tag || "-"), a.image)}
+      ${row("Sync", `<span class="sync--${esc(a.sync)}">${esc(a.sync)}${a.revision ? ` @ ${esc(a.revision)}` : ""}</span>`)}
+      ${row("Deployed", esc(ago(a.deployedAt)))}
+      ${row("Route", esc(`${a.name}.localhost`))}
     </dl>
-    <div class="card__actions">
+    <div class="ops">
       ${state.demo
         ? `<button type="button" class="is-primary" data-pg="${esc(a.name)}:preview">Open</button>`
         : `<a class="is-primary" href="${esc(a.url || "#")}" target="_blank" rel="noopener">Open</a>`}
       ${realRepo && a.repo ? `<a href="${esc(a.repo)}" target="_blank" rel="noopener">Repo</a>` : `<button type="button" data-pg="${esc(a.name)}:files">Files</button>`}
       ${realRepo && a.repo ? `<a href="${esc(a.repo)}/actions" target="_blank" rel="noopener">Pipeline</a>` : `<button type="button" data-pg="${esc(a.name)}:pipeline">Pipeline</button>`}
       ${state.demo ? `<button type="button" data-pg="${esc(a.name)}:edit">Edit</button>` : ""}
-      <a href="${esc(grafana)}" target="_blank" rel="noopener">Metrics &amp; logs</a>
+      <a href="${esc(grafana)}" target="_blank" rel="noopener">Metrics</a>
       <a href="${esc(argo)}" target="_blank" rel="noopener">Argo CD</a>
       <button type="button" data-sync="${esc(a.name)}">Sync</button>
       <button type="button" class="is-danger" data-remove="${esc(a.name)}" title="Remove from the platform (the repo stays)">Remove</button>
@@ -146,16 +151,16 @@ function appCard(a) {
 
 function jobCard(j) {
   const current = j.steps.find((s) => s.state === "running" || s.state === "failed") || j.steps[j.steps.length - 1];
+  const failed = j.status === "failed";
+  const done = j.steps.filter((s) => s.state === "done").length;
   return `
-  <article class="card card--job" data-job="${esc(j.id)}">
-    <div class="card__top">
-      <i class="dot dot--${esc(j.status)}"></i>
-      <h3 class="card__name">${esc(j.name)}</h3>
-      <span class="pill pill--${esc(j.status)}">${j.status === "running" ? "launching" : esc(j.status)}</span>
-    </div>
-    <div class="mini-steps">${j.steps.map((s) => `<span class="is-${esc(s.state)}" title="${esc(s.label)}"></span>`).join("")}</div>
-    <p class="card__desc">${esc(j.status === "failed" ? j.error : current.label)}${current.detail && j.status !== "failed" ? ` <span class="muted">· ${esc(current.detail)}</span>` : ""}</p>
-    <div class="card__actions"><button type="button" class="is-primary" data-show-job="${esc(j.id)}">Show progress</button></div>
+  <article class="sheet sheet--job" data-job="${esc(j.id)}">
+    <span class="sheet__no">Launch in progress · T-${Math.max(0, 4 - done)}</span>
+    <h3 class="sheet__name">${esc(j.name)}</h3>
+    <span class="stamp ${failed ? "stamp--scrub" : "stamp--launch"}">${failed ? "SCRUB" : "LAUNCH"}<small>${failed ? "failed" : "running"}</small></span>
+    <div class="bar">${j.steps.map((s) => `<span class="is-${esc(s.state)}" title="${esc(s.label)}"></span>`).join("")}</div>
+    <p class="sheet__desc">${esc(failed ? j.error : current.label)}${current.detail && !failed ? ` · ${esc(current.detail)}` : ""}</p>
+    <div class="ops"><button type="button" class="is-primary" data-show-job="${esc(j.id)}">Launch control</button></div>
   </article>`;
 }
 
@@ -165,8 +170,10 @@ function renderApps() {
   const jobs = state.jobs.filter((j) => j.status !== "done" || !appNames.has(j.name));
   const launching = new Set(jobs.filter((j) => j.status === "running").map((j) => j.name));
   const apps = state.apps.filter((a) => !launching.has(a.name));
-  $("#apps").innerHTML = jobs.map(jobCard).join("") + apps.map(appCard).join("");
+  $("#apps").innerHTML = jobs.map(jobCard).join("") + apps.map((a, i) => appCard(a, i)).join("");
   $("#empty").hidden = apps.length + jobs.length > 0;
+  scene3d?.update(state.apps, state.jobs, state.platform);
+  if (!$("#apps").classList.contains("is-settled")) setTimeout(() => $("#apps").classList.add("is-settled"), 900);
 }
 
 async function refresh() {
@@ -291,7 +298,7 @@ function fmtDuration(s) {
 }
 
 function renderJob(job) {
-  $("#drawer-title").textContent = job.status === "done" ? "Launched" : job.status === "failed" ? "Launch failed" : "Launching";
+  $("#drawer-title").textContent = job.status === "done" ? "Liftoff" : job.status === "failed" ? "Scrubbed" : "Countdown";
   $("#job-name").textContent = job.name;
   const st = $("#job-status");
   st.textContent = job.status === "running" ? "running" : job.status;
@@ -299,7 +306,7 @@ function renderJob(job) {
 
   $("#steps").innerHTML = job.steps.map((s, i) => `
     <li class="is-${esc(s.state)}">
-      <span class="ico">${s.state === "done" ? "&#10003;" : s.state === "failed" ? "!" : i + 1}</span>
+      <span class="ico">T-${job.steps.length - 1 - i}</span>
       <div><b>${esc(s.label)} <span class="t">${esc(fmtDuration(s))}</span></b>${s.detail ? `<small>${esc(s.detail)}</small>` : ""}</div>
     </li>`).join("");
 
@@ -396,7 +403,34 @@ $("#job-open").addEventListener("click", (e) => {
 });
 
 // ------------------------------------------------------------------ start
+function tickClock() {
+  $("#clock").textContent = new Date().toISOString().slice(11, 19);
+}
+
+async function startScene() {
+  const canvas = $("#scene");
+  try {
+    const { createScene } = await import("./scene.js");
+    scene3d = createScene(canvas, $("#labels"), {
+      reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      onPick(name) {
+        if (playground) return playground.open(name, "preview");
+        const sheet = document.querySelector(`.sheet[data-app="${CSS.escape(name)}"]`);
+        if (!sheet) return;
+        sheet.scrollIntoView({ behavior: "smooth", block: "center" });
+        sheet.classList.remove("is-flash");
+        void sheet.offsetWidth;
+        sheet.classList.add("is-flash");
+      },
+    });
+  } catch { scene3d = null; }
+  if (!scene3d) { canvas.hidden = true; $("#scene-hint").textContent = "3D view needs WebGL"; }
+}
+
 (async function start() {
+  tickClock();
+  setInterval(tickClock, 1000);
+  await startScene();
   api = await makeApi();
   if (BROWSER_DEMO) $("#demo-banner").hidden = false;
   try { templates = await api.templates(); } catch { templates = []; }
