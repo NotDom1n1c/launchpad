@@ -156,7 +156,27 @@ launchpad.ps1     Windows entry point
 
 ## Screenshots
 
-Screenshots of the portal, Argo CD and Grafana are in [`docs/screenshots`](docs/screenshots).
+All taken from the real cluster on my laptop.
+
+**Portal**: every app with health, sync state and the image that really runs
+
+![LAUNCHPAD portal](docs/screenshots/portal-live.png)
+
+**New app**: name, template, description. The preview shows repo, image and URL before anything is created.
+
+![New app drawer](docs/screenshots/portal-new-app.png)
+
+**Argo CD**: the `platform` app-of-apps, synced to the latest commit
+
+![Argo CD platform tree](docs/screenshots/argocd-platform.png)
+
+**Argo CD**: one tenant app, deployed from its own `deploy/` folder. The last sync is the pipeline's tag commit.
+
+![Argo CD app tree](docs/screenshots/argocd-app.png)
+
+**Grafana**: the LAUNCHPAD dashboard with requests, p95 latency, CPU, memory, Argo CD state and logs from Loki
+
+![Grafana dashboard](docs/screenshots/grafana-apps.png)
 
 ## License
 

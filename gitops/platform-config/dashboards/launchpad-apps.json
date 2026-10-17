@@ -558,7 +558,9 @@
               "autosync_enabled": true,
               "dest_server": true,
               "repo": true,
-              "operation": true
+              "operation": true,
+              "exported_namespace": true,
+              "dest_namespace": true
             },
             "renameByName": {
               "name": "App",
