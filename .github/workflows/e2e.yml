@@ -1,0 +1,88 @@
+# Builds the ENTIRE platform from nothing on a fresh GitHub runner and proves it works:
+# k3d cluster -> Argo CD -> everything from Git -> smoke tests (ingress, metrics, logs, alerts).
+name: e2e
+
+on:
+  push:
+    branches: [main]
+    paths: ["cluster/**", "bootstrap/**", "gitops/**", "scripts/**", ".github/workflows/e2e.yml"]
+  pull_request:
+    paths: ["cluster/**", "bootstrap/**", "gitops/**", "scripts/**", "portal/deploy/**"]
+  schedule:
+    - cron: "17 5 * * 1"   # every Monday: does the platform still build from scratch?
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz | sudo tar -xz -C /usr/local/bin kubeconform
+      - name: Kustomize builds and schema check
+        run: |
+          set -euo pipefail
+          schemas='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          check() { kubeconform -strict -summary -ignore-missing-schemas -schema-location default -schema-location "$schemas" "$@"; }
+          check bootstrap/root.yaml gitops/platform gitops/apps
+          for dir in gitops/platform-config portal/deploy; do
+            echo "== kustomize $dir"; kubectl kustomize "$dir" | check -
+          done
+          for t in templates/static-site templates/node-api; do
+            echo "== kustomize $t/deploy"; sed 's/__APP__/demo/g; s/__OWNER__/demo/g' -i $t/deploy/*.yaml; kubectl kustomize "$t/deploy" | check -
+          done
+
+  e2e:
+    name: Platform from scratch
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Tools (k3d, kubectl, helm)
+        run: bash scripts/setup-wsl.sh
+
+      - name: scripts/up.sh
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          WAIT_MINUTES: "25"
+        run: bash scripts/up.sh
+
+      - name: scripts/smoke-test.sh
+        run: bash scripts/smoke-test.sh | tee smoke.txt
+
+      - name: Self-healing demo
+        run: bash scripts/chaos.sh gambit
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### LAUNCHPAD e2e"
+            echo '```'
+            kubectl -n argocd get applications -o custom-columns='APP:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status' 2>&1 || true
+            echo
+            cat smoke.txt 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' || true
+            echo
+            kubectl top nodes 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Debug dump
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide || true
+          kubectl get events -A --sort-by=.lastTimestamp | tail -n 60 || true
+          for a in $(kubectl -n argocd get applications -o name); do echo "== $a"; kubectl -n argocd get "$a" -o jsonpath='{.status.conditions}{"\n"}{.status.operationState.message}{"\n"}' || true; done

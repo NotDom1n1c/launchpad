@@ -1,0 +1,85 @@
+# Portal pipeline: the platform eats its own cooking.
+#   unit tests -> build -> smoke test -> Trivy -> GHCR -> tag bump in portal/deploy (Argo CD deploys it)
+name: portal
+
+on:
+  push:
+    branches: [main]
+    paths: ["portal/**", "!portal/deploy/**", ".github/workflows/portal.yml"]
+  pull_request:
+    paths: ["portal/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TRIVY_VERSION: "0.76.0"
+  IMAGE: ghcr.io/notdom1n1c/launchpad-portal
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: portal
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Unit tests
+        run: node --test --test-reporter=spec
+
+  deliver:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build
+        run: |
+          echo "TAG=sha-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          docker build portal \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            -t "$IMAGE:sha-${GITHUB_SHA::7}" -t "$IMAGE:latest"
+
+      - name: Smoke test the container
+        run: |
+          docker run -d --name portal -p 8080:8080 -e LAUNCHPAD_DEMO=1 "$IMAGE:$TAG"
+          for i in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:8080/healthz && break; sleep 1; done
+          curl -fsS http://localhost:8080/api/overview | head -c 300; echo
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/)" = "200"
+
+      - name: Security scan (Trivy)
+        run: |
+          trivy() { docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$HOME/.cache/trivy:/root/.cache/trivy" "aquasec/trivy:$TRIVY_VERSION" "$@"; }
+          trivy image --no-progress --ignore-unfixed --severity HIGH,CRITICAL "$IMAGE:$TAG" | tee trivy.txt
+          { echo "### Trivy scan of $IMAGE:$TAG"; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          trivy image --quiet --skip-db-update --ignore-unfixed --severity CRITICAL --exit-code 1 "$IMAGE:$TAG"
+
+      - name: Push to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker push "$IMAGE:$TAG"
+          docker push "$IMAGE:latest"
+
+      - name: Deploy (GitOps)
+        run: |
+          sed -i "s/newTag: .*/newTag: $TAG/" portal/deploy/kustomization.yaml
+          if git diff --quiet; then exit 0; fi
+          git config user.name "launchpad-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "deploy: portal $TAG [skip ci]"
+          for i in 1 2 3; do git pull --rebase && git push && break; sleep 5; done

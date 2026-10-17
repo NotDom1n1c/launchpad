@@ -78,7 +78,7 @@ while :; do
   fi
   sleep 10
 done
-printf '%s\n' "$table" | column -t
+printf '%s\n' "$table" | awk '{ printf "  %-18s %-10s %s\n", $1, $2, $3 }'
 
 # ---------------------------------------------------------------- done
 argo_pw="$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
