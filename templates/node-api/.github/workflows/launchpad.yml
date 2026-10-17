@@ -32,6 +32,8 @@ jobs:
 
   deliver:
     needs: test
+    # template repositories only test themselves; their copies (the real apps) deliver
+    if: ${{ !github.event.repository.is_template }}
     runs-on: ubuntu-latest
     permissions:
       contents: write   # commit the new image tag into deploy/
