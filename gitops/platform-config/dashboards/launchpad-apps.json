@@ -30,7 +30,6 @@
         "definition": "label_values(kube_deployment_spec_replicas{namespace!~\"kube-.*|argocd|monitoring|launchpad\"}, namespace)",
         "includeAll": true,
         "multi": true,
-        "allValue": ".+",
         "current": {
           "text": "All",
           "value": "$__all"
