@@ -6,8 +6,8 @@
 import * as THREE from "./vendor/three.module.min.js";
 
 const C = {
-  deck: 0xd9d3c4, deckTop: 0xe6e1d4, pad: 0xc4bdab, ink: 0x161616, paper: 0xf4f1e8,
-  orange: 0xff4f00, go: 0x1b8a4c, hold: 0xe39a00, scrub: 0xd02c1d, idle: 0x8a857a,
+  deck: 0xdde2f7, deckTop: 0xeceefa, pad: 0xc6ccef, ink: 0x1d2bb8, paper: 0xffffff,
+  orange: 0xc8f53a, go: 0x0f9d6b, hold: 0xe8a20c, scrub: 0xe8344e, idle: 0x8a90c8,
 };
 const STATUS_COLOR = { go: C.go, hold: C.hold, scrub: C.scrub, launch: C.orange, idle: C.idle };
 
@@ -41,7 +41,7 @@ export function createScene(canvas, labelsEl, { onPick = () => {}, reducedMotion
   const view = { azimuth: Math.PI * 0.27, elevation: 0.58, radius: 40, velocity: 0, zoom: 1 };
 
   // ---------------------------------------------------------------- light
-  scene.add(new THREE.HemisphereLight(0xfffaf0, 0xb7b09f, 1.35));
+  scene.add(new THREE.HemisphereLight(0xf4f6ff, 0xa9b0dc, 1.35));
   const sun = new THREE.DirectionalLight(0xffffff, 1.9);
   sun.position.set(9, 16, 5);
   sun.castShadow = true;
@@ -100,7 +100,7 @@ export function createScene(canvas, labelsEl, { onPick = () => {}, reducedMotion
     const g = new THREE.Group();
     const rec = { name, g, kind, platform, height: 1, target: 1, rise: 1, status: "idle", dying: false };
     if (platform) {
-      const body = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.7, 0.8), mat(0x2a2a28));
+      const body = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.7, 0.8), mat(0x24308f));
       body.position.y = 0.35;
       body.castShadow = true;
       g.add(body);
@@ -165,7 +165,7 @@ export function createScene(canvas, labelsEl, { onPick = () => {}, reducedMotion
     lift.add(halo);
     // launch beam
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.95, 14, 24, 1, true),
-      new THREE.MeshBasicMaterial({ color: C.orange, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+      new THREE.MeshBasicMaterial({ color: C.orange, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
     beam.position.y = 7;
     g.add(beam);
     Object.assign(rec, { body, band, beacon, halo, beam, lift });
