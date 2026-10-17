@@ -37,7 +37,7 @@ test("health and metrics endpoints", async () => {
 
 test("overview returns apps, platform and links", async () => {
   const o = await (await fetch(`${base}/api/overview`)).json();
-  assert.equal(o.apps.length, 3);
+  assert.equal(o.apps.length, 4);
   assert.equal(o.links.argocd, "http://argocd.localhost");
   assert.equal(o.canCreate, true);
 });
@@ -51,11 +51,11 @@ test("create validates and returns a job", async () => {
   const bad = await fetch(`${base}/api/apps`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Bad Name", template: "static-site" }) });
   assert.equal(bad.status, 400);
 
-  const ok = await fetch(`${base}/api/apps`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "hello-api", template: "node-api" }) });
+  const ok = await fetch(`${base}/api/apps`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "weather-api", template: "node-api" }) });
   assert.equal(ok.status, 202);
   const job = await ok.json();
   const again = await (await fetch(`${base}/api/jobs/${job.id}`)).json();
-  assert.equal(again.name, "hello-api");
+  assert.equal(again.name, "weather-api");
 });
 
 test("unknown API routes are 404 JSON", async () => {

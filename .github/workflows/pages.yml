@@ -1,11 +1,12 @@
-# Publishes the portal UI as an interactive demo on GitHub Pages.
-# Same code as in the cluster; on github.io it runs the platform logic against in-browser fakes.
+# Publishes the portal as a public playground on GitHub Pages.
+# Same UI and platform code as in the cluster; on github.io it runs against in-browser fakes,
+# and apps created there render from the real template files.
 name: pages
 
 on:
   push:
     branches: [main]
-    paths: ["portal/public/**", "docs/**", ".github/workflows/pages.yml"]
+    paths: ["portal/public/**", "docs/**", "templates/**", "scripts/build-demo-site.sh", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -25,12 +26,8 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Assemble site
-        run: |
-          mkdir -p site
-          cp -r portal/public/. site/
-          cp -r docs/screenshots site/screenshots 2>/dev/null || true
-          touch site/.nojekyll
+      - name: Assemble the playground (portal UI + real template files)
+        run: bash scripts/build-demo-site.sh site
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site

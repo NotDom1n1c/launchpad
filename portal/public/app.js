@@ -6,12 +6,9 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 const params = new URLSearchParams(location.search);
 const BROWSER_DEMO = location.hostname.endsWith("github.io") || params.has("demo") || location.protocol === "file:";
 
-// Live versions of the three original apps, so the public demo has real links
-const PUBLIC_URLS = {
-  steuerrechner: "https://notdom1n1c.github.io/steuerrechner/",
-  gambit: "https://notdom1n1c.github.io/gambit/",
-  ember: "https://notdom1n1c.github.io/ember/",
-};
+// Apps whose GitHub repos really exist; apps a visitor creates in the demo only exist in their browser
+const REAL_REPOS = new Set(["steuerrechner", "gambit", "ember", "hello-api"]);
+let playground = null; // demo only: lets visitors open, inspect and edit their apps
 
 // ------------------------------------------------------------------ api
 async function makeApi() {
@@ -36,8 +33,11 @@ async function makeApi() {
     };
   }
 
-  const [{ createPlatform }, { createWorld }] = await Promise.all([import("./core/platform.js"), import("./core/fakes.js")]);
-  const world = createWorld({ owner: "NotDom1n1c", speed: 1 });
+  const [{ createPlatform }, { createWorld }, pg] = await Promise.all([
+    import("./core/platform.js"), import("./core/fakes.js"), import("./demo/playground.js"),
+  ]);
+  const world = createWorld({ owner: "NotDom1n1c", speed: 1, templateFiles: pg.templateLoader() });
+  playground = pg.initPlayground({ world, owner: "NotDom1n1c", getState: () => state, toast, refresh: () => refresh() });
   const platform = createPlatform({ ...world, owner: "NotDom1n1c", pollMs: 700 });
   const clone = (x) => JSON.parse(JSON.stringify(x));
   const links = { argocd: "https://github.com/NotDom1n1c/launchpad#screenshots", grafana: "https://github.com/NotDom1n1c/launchpad#screenshots", github: "https://github.com/NotDom1n1c" };
@@ -111,7 +111,7 @@ function renderOverview() {
 // ------------------------------------------------------------------ render: cards
 function appCard(a) {
   const links = state.links || {};
-  const url = state.demo ? PUBLIC_URLS[a.name] : a.url;
+  const realRepo = !state.demo || REAL_REPOS.has(a.name);
   const grafana = state.demo ? links.grafana : `${links.grafana}/d/launchpad-apps/launchpad-apps?var-app=${encodeURIComponent(a.name)}`;
   const argo = state.demo ? links.argocd : `${links.argocd}/applications/argocd/${encodeURIComponent(a.name)}`;
   const tpl = templates.find((t) => t.id === a.template);
@@ -130,9 +130,12 @@ function appCard(a) {
       <dt>Template</dt><dd>${esc(tpl ? tpl.name : a.template || "-")}</dd>
     </dl>
     <div class="card__actions">
-      <a class="is-primary" href="${esc(url || "#")}" target="_blank" rel="noopener" ${url ? "" : 'aria-disabled="true" title="Runs on the local cluster only"'}>Open</a>
-      ${a.repo ? `<a href="${esc(a.repo)}" target="_blank" rel="noopener">Repo</a>` : ""}
-      ${a.repo ? `<a href="${esc(a.repo)}/actions" target="_blank" rel="noopener">Pipeline</a>` : ""}
+      ${state.demo
+        ? `<button type="button" class="is-primary" data-pg="${esc(a.name)}:preview">Open</button>`
+        : `<a class="is-primary" href="${esc(a.url || "#")}" target="_blank" rel="noopener">Open</a>`}
+      ${realRepo && a.repo ? `<a href="${esc(a.repo)}" target="_blank" rel="noopener">Repo</a>` : `<button type="button" data-pg="${esc(a.name)}:files">Files</button>`}
+      ${realRepo && a.repo ? `<a href="${esc(a.repo)}/actions" target="_blank" rel="noopener">Pipeline</a>` : `<button type="button" data-pg="${esc(a.name)}:pipeline">Pipeline</button>`}
+      ${state.demo ? `<button type="button" data-pg="${esc(a.name)}:edit">Edit</button>` : ""}
       <a href="${esc(grafana)}" target="_blank" rel="noopener">Metrics &amp; logs</a>
       <a href="${esc(argo)}" target="_blank" rel="noopener">Argo CD</a>
       <button type="button" data-sync="${esc(a.name)}">Sync</button>
@@ -177,6 +180,7 @@ async function refresh() {
     renderOverview();
   }
   const busy = state.jobs.some((j) => j.status === "running") || state.apps.some((a) => a.health !== "Healthy");
+  playground?.tick();
   refreshTimer = setTimeout(refresh, busy ? 2000 : 6000);
 }
 
@@ -302,8 +306,8 @@ function renderJob(job) {
   const l = job.links || {};
   const links = state.links || {};
   const parts = [];
-  if (l.repo) parts.push(`<a href="${esc(l.repo)}" target="_blank" rel="noopener">Repository</a>`);
-  if (l.pipeline) parts.push(`<a href="${esc(l.pipeline)}" target="_blank" rel="noopener">Pipeline run</a>`);
+  if (l.repo && !state.demo) parts.push(`<a href="${esc(l.repo)}" target="_blank" rel="noopener">Repository</a>`);
+  if (l.pipeline && !state.demo) parts.push(`<a href="${esc(l.pipeline)}" target="_blank" rel="noopener">Pipeline run</a>`);
   if (l.argocd && !state.demo) parts.push(`<a href="${esc(links.argocd)}/applications/argocd/${esc(l.argocd)}" target="_blank" rel="noopener">Argo CD</a>`);
   $("#job-links").innerHTML = parts.join("");
 
@@ -312,9 +316,16 @@ function renderJob(job) {
   const open = $("#job-open");
   open.hidden = job.status !== "done";
   open.href = state.demo ? "#" : job.url;
-  open.textContent = state.demo ? `Live at ${job.url} (on the local cluster)` : "Open the app";
-  open.toggleAttribute("aria-disabled", state.demo);
+  open.textContent = "Open the app";
   if (job.status === "failed") $("#job-another").textContent = "Try again";
+
+  // demo: the real pipeline output, streamed while the build runs
+  const log = $("#job-log");
+  if (playground) {
+    playground.jobLog(job).then((html) => { log.hidden = !html; log.innerHTML = html; log.scrollTop = log.scrollHeight; });
+  } else {
+    log.hidden = true;
+  }
 }
 
 async function pollJob() {
@@ -355,6 +366,11 @@ document.addEventListener("click", async (e) => {
     refresh();
   }
 
+  if (t.dataset.pg && playground) {
+    const [name, tab] = t.dataset.pg.split(":");
+    playground.open(name, tab);
+  }
+
   if (t.dataset.showJob) {
     const job = state.jobs.find((j) => j.id === t.dataset.showJob);
     if (job) { openDrawer(); showJob(job); }
@@ -372,7 +388,12 @@ $("#f-name").addEventListener("input", (e) => {
 });
 $("#form").addEventListener("submit", submit);
 $("#job-another").addEventListener("click", showForm);
-$("#job-open").addEventListener("click", (e) => { if (state.demo) e.preventDefault(); });
+$("#job-open").addEventListener("click", (e) => {
+  if (!playground || !activeJob) return;
+  e.preventDefault();
+  closeDrawer();
+  playground.open(activeJob.name, "preview");
+});
 
 // ------------------------------------------------------------------ start
 (async function start() {

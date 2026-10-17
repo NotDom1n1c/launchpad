@@ -2,7 +2,7 @@
 
 **A self-service developer platform on Kubernetes.** Click *New app*, pick a template, and a few minutes later the app has its own GitHub repository, a CI pipeline with a security scan, a container image, a GitOps deployment, a URL, metrics, logs and alerts. Nobody runs `kubectl` by hand.
 
-[**Interactive demo**](https://notdom1n1c.github.io/launchpad/) (the real portal UI, running against a simulated cluster in your browser)
+[**Playground**](https://notdom1n1c.github.io/launchpad/): the real portal UI on a simulated cluster in your browser. Create an app, open it, read its generated files, edit it and push, and watch the pipeline and the rollout. Static sites render from the real template files, Node APIs run the real template code, and broken code fails the tests just like in CI. Nothing is created on GitHub.
 
 ![e2e](https://github.com/NotDom1n1c/launchpad/actions/workflows/e2e.yml/badge.svg)
 ![portal](https://github.com/NotDom1n1c/launchpad/actions/workflows/portal.yml/badge.svg)

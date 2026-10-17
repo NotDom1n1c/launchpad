@@ -13,8 +13,8 @@
 </head>
 <body>
   <div class="demo-banner" id="demo-banner" hidden>
-    <b>Interactive demo.</b> Simulated data in your browser. The real platform runs on a local k3d cluster:
-    <a href="https://github.com/NotDom1n1c/launchpad">source on GitHub</a>
+    <b>Playground.</b> Create an app, open it, edit it and push: everything runs in your browser, nothing is created on GitHub.
+    The real platform runs on a k3d cluster: <a href="https://github.com/NotDom1n1c/launchpad">source &amp; screenshots</a>
   </div>
 
   <header class="top">
@@ -115,6 +115,7 @@
     <div class="job" id="job" hidden>
       <p class="job__name"><code id="job-name"></code><span class="pill" id="job-status">running</span></p>
       <ol class="steps" id="steps"></ol>
+      <pre class="log job__log" id="job-log" hidden></pre>
       <div class="job__links" id="job-links"></div>
       <div class="job__done" id="job-done" hidden>
         <a class="btn btn--primary btn--wide" id="job-open" target="_blank" rel="noopener">Open the app</a>

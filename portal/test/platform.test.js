@@ -65,10 +65,10 @@ test("summarizeApp reads health, sync and image tag", () => {
 test("overview lists tenant apps separately from platform apps", async () => {
   const { platform } = setup();
   const o = await platform.overview();
-  assert.deepEqual(o.apps.map((a) => a.name), ["ember", "gambit", "steuerrechner"]);
+  assert.deepEqual(o.apps.map((a) => a.name), ["ember", "gambit", "hello-api", "steuerrechner"]);
   assert.ok(o.platform.some((a) => a.name === "monitoring"));
-  assert.equal(o.stats.apps, 3);
-  assert.equal(o.stats.healthy, 3);
+  assert.equal(o.stats.apps, 4);
+  assert.equal(o.stats.healthy, 4);
 });
 
 test("creating an app walks all five steps and ends healthy", async () => {
@@ -126,4 +126,28 @@ test("without a GitHub token the portal is read-only", async () => {
   const platform = createPlatform({ ...world, github: { ...world.github, ready: false }, owner: "NotDom1n1c" });
   assert.equal((await platform.overview()).canCreate, false);
   await assert.rejects(platform.createApp({ name: "x-app", template: "static-site" }), /No GitHub token/);
+});
+
+test("a push to a live app rolls out a new version, a failing one keeps the old", async () => {
+  const { platform, world, clock } = setup();
+  const before = (await platform.overview()).apps.find((a) => a.name === "hello-api").tag;
+
+  const commit = await world.github.commitFiles("hello-api", "main", [{ path: "src/app.js", content: "// v2" }]);
+  await clock.sleep(16000); // pipeline done, Argo CD rolling out
+  let app = (await platform.overview()).apps.find((a) => a.name === "hello-api");
+  assert.equal(app.health, "Progressing");
+  await clock.sleep(5000);
+  app = (await platform.overview()).apps.find((a) => a.name === "hello-api");
+  assert.equal(app.health, "Healthy");
+  assert.equal(app.tag, `sha-${commit.slice(0, 7)}`);
+  assert.notEqual(app.tag, before);
+
+  world.repos.get("hello-api").nextRunFails = "SyntaxError: Unexpected token";
+  await world.github.commitFiles("hello-api", "main", [{ path: "src/app.js", content: "broken(" }]);
+  await clock.sleep(30000);
+  const run = await world.github.latestRun("hello-api");
+  assert.equal(run.conclusion, "failure");
+  app = (await platform.overview()).apps.find((a) => a.name === "hello-api");
+  assert.equal(app.tag, `sha-${commit.slice(0, 7)}`, "the old version keeps running");
+  assert.equal(app.health, "Healthy");
 });
